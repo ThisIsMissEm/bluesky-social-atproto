@@ -51,7 +51,7 @@ export { proxyHandler } from './pipethrough'
 export * as auth from './account-manager/helpers/auth'
 export * as handle from './handle'
 export * as authOutput from './auth-output'
-export { AuthScope } from './auth-scope'
+export * as authScope from './auth-scope'
 
 // Legacy export for backwards compatibility
 export type SkeletonHandler = MethodHandler<

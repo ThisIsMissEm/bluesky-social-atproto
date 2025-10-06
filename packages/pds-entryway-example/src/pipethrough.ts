@@ -11,6 +11,7 @@ import {
   streamToNodeBuffer,
 } from '@atproto/common'
 import { RpcPermissionMatch } from '@atproto/oauth-scopes'
+import { authScope } from '@atproto/pds'
 import { ResponseType, XRPCError as XRPCClientError } from '@atproto/xrpc'
 import {
   CatchallHandler,
@@ -24,6 +25,7 @@ import {
 } from '@atproto/xrpc-server'
 import { buildProxiedContentEncoding } from '@atproto-labs/xrpc-utils'
 import { AppContext } from '.'
+import { ids } from './lexicon/lexicons'
 
 export const proxyHandler = (ctx: AppContext): CatchallHandler => {
   const performAuth = ctx.authVerifier.authorization<RpcPermissionMatch>({
@@ -60,55 +62,54 @@ export const proxyHandler = (ctx: AppContext): CatchallHandler => {
 
       const { credentials } = excludeErrorResult(authResult)
 
-      // if (
-      //   credentials.type === 'access' &&
-      //   !isAccessPrivileged(credentials.scope) &&
-      //   PRIVILEGED_METHODS.has(lxm)
-      // ) {
-      //   throw new InvalidRequestError('Bad token method', 'InvalidToken')
-      // }
+      if (
+        credentials.type === 'access' &&
+        !authScope.isAccessPrivileged(credentials.scope) &&
+        PRIVILEGED_METHODS.has(lxm)
+      ) {
+        throw new InvalidRequestError('Bad token method', 'InvalidToken')
+      }
 
       // The following didn't work because com.atproto.server.getServiceAuth is a protected method,
       // so I can't call it from here:
-      //
-      // const didDoc = await ctx.idResolver.did.resolve(credentials.did, false)
-      // if (didDoc === null) {
-      //   throw new InternalServerError(
-      //     `Failed to retrieve did document: ${credentials.did}`,
-      //   )
-      // }
+      const didDoc = await ctx.idResolver.did.resolve(credentials.did, false)
+      if (didDoc === null) {
+        throw new InternalServerError(
+          `Failed to retrieve did document: ${credentials.did}`,
+        )
+      }
 
-      // const pdsEndpoint = getPdsEndpoint(didDoc)
-      // if (pdsEndpoint === undefined) {
-      //   throw new InternalServerError(
-      //     `Failed to retrieve pds endpoint from did document: ${credentials.did}`,
-      //   )
-      // }
-      // const pdsAgent = new Agent({
-      //   service: pdsEndpoint,
-      // })
-      // const token = await pdsAgent.com.atproto.server.getServiceAuth(
-      //   {
-      //     aud,
-      //     lxm,
-      //   },
-      //   {
-      //     headers: {
-      //       Authorization: req.headers.authorization,
-      //     },
-      //   },
-      // )
+      const pdsEndpoint = getPdsEndpoint(didDoc)
+      if (pdsEndpoint === undefined) {
+        throw new InternalServerError(
+          `Failed to retrieve pds endpoint from did document: ${credentials.did}`,
+        )
+      }
+      const pdsAgent = new Agent({
+        service: pdsEndpoint,
+      })
+      const token = await pdsAgent.com.atproto.server.getServiceAuth(
+        {
+          aud,
+          lxm,
+        },
+        {
+          headers: {
+            Authorization: req.headers.authorization,
+          },
+        },
+      )
 
-      // if (!token.success) {
-      //   throw new InternalServerError('Failed to get service auth token')
-      // }
+      if (!token.success) {
+        throw new InternalServerError('Failed to get service auth token')
+      }
 
-      // const serviceToken = token.data.token
+      const serviceToken = token.data.token
 
-      // console.log(
-      //   { serviceToken, did: credentials.did, aud, lxm },
-      //   'pipethrough',
-      // )
+      console.log(
+        { serviceToken, did: credentials.did, aud, lxm, pdsEndpoint },
+        'pipethrough',
+      )
 
       const headers: IncomingHttpHeaders = {
         'accept-encoding': req.headers['accept-encoding'] || 'identity',
@@ -120,12 +121,12 @@ export const proxyHandler = (ctx: AppContext): CatchallHandler => {
         'content-encoding': body && req.headers['content-encoding'],
         'content-length': body && req.headers['content-length'],
 
-        // authorization: `Bearer ${serviceToken}`,
-        authorization: req.headers.authorization,
+        authorization: `Bearer ${serviceToken}`,
+        // authorization: req.headers.authorization,
       }
 
       const dispatchOptions: Dispatcher.RequestOptions = {
-        origin,
+        origin: pdsEndpoint,
         method: req.method,
         path: req.originalUrl,
         body,
@@ -323,6 +324,12 @@ export const parseProxyHeader = async (
 
   const serviceId = proxyTo.slice(hashIndex)
   const url = getServiceEndpoint(didDoc, { id: serviceId })
+
+  console.log(
+    { didDoc, serviceId, url, proxyTo },
+    'entryway pipethrough proxy header',
+  )
+
   if (!url) {
     throw new InvalidRequestError('could not resolve proxy did service url')
   }
@@ -564,8 +571,12 @@ const defaultService = (
   serviceInfo: { url: string; did: string } | null
 } => {
   return {
+    // Not sure what the service ID should be for an entryway?
     serviceId: 'bsky_appview',
-    serviceInfo: ctx.cfg.bskyAppView,
+    serviceInfo: {
+      did: ctx.cfg.service.did,
+      url: ctx.cfg.service.publicUrl,
+    },
   }
 }
 
@@ -576,3 +587,25 @@ const safeString = (str: unknown): string | undefined => {
 function logResponseError(this: ServerResponse, err: unknown): void {
   console.error({ err }, 'error forwarding upstream response')
 }
+
+// export const CHAT_BSKY_METHODS = new Set<string>([
+//   ids.ChatBskyActorDeleteAccount,
+//   ids.ChatBskyActorExportAccountData,
+//   ids.ChatBskyConvoDeleteMessageForSelf,
+//   ids.ChatBskyConvoGetConvo,
+//   ids.ChatBskyConvoGetConvoForMembers,
+//   ids.ChatBskyConvoGetLog,
+//   ids.ChatBskyConvoGetMessages,
+//   ids.ChatBskyConvoLeaveConvo,
+//   ids.ChatBskyConvoListConvos,
+//   ids.ChatBskyConvoMuteConvo,
+//   ids.ChatBskyConvoSendMessage,
+//   ids.ChatBskyConvoSendMessageBatch,
+//   ids.ChatBskyConvoUnmuteConvo,
+//   ids.ChatBskyConvoUpdateRead,
+// ])
+
+export const PRIVILEGED_METHODS = new Set<string>([
+  // ...CHAT_BSKY_METHODS,
+  ids.ComAtprotoServerCreateAccount,
+])

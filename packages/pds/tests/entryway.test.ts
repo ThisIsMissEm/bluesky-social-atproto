@@ -125,6 +125,20 @@ describe('entryway', () => {
     expect(accountFromEntryway?.handle).toEqual('alice3.test')
   })
 
+  it('allows calling methods that exist only in the PDS', async () => {
+    const response = await entrywayAgent.com.atproto.repo.describeRepo(
+      {
+        repo: alice,
+      },
+      {
+        headers: SeedClient.getHeaders(accessToken),
+      },
+    )
+
+    expect(response.success).toBe(true)
+    expect(response.data.handle).toBe('alice3.test')
+  })
+
   it('does not allow bringing own op to account creation.', async () => {
     const {
       data: { signingKey },

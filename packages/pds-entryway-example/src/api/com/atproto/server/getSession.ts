@@ -1,5 +1,5 @@
 import { ComAtprotoServerGetSession } from '@atproto/api'
-import { AppContext, AuthScope, authOutput } from '@atproto/pds'
+import { AppContext, authOutput, authScope } from '@atproto/pds'
 import { INVALID_HANDLE } from '@atproto/syntax'
 import { InvalidRequestError } from '@atproto/xrpc-server'
 import { Server } from '../../../../lexicon'
@@ -8,7 +8,7 @@ import { didDocForSession, formatAccountStatus } from './util'
 export default function (server: Server, ctx: AppContext) {
   server.com.atproto.server.getSession({
     auth: ctx.authVerifier.authorizationOrUserServiceAuth({
-      additional: [AuthScope.SignupQueued],
+      additional: [authScope.AuthScope.SignupQueued],
       authorize: () => {
         // Always allowed. "email" access is checked in the handler.
       },
