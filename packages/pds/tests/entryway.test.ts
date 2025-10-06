@@ -125,18 +125,18 @@ describe('entryway', () => {
     expect(accountFromEntryway?.handle).toEqual('alice3.test')
   })
 
-  it('allows calling methods that exist only in the PDS', async () => {
-    const response = await entrywayAgent.com.atproto.repo.describeRepo(
-      {
-        repo: alice,
-      },
-      {
-        headers: SeedClient.getHeaders(accessToken),
-      },
-    )
-
-    expect(response.success).toBe(true)
-    expect(response.data.handle).toBe('alice3.test')
+  // cite: https://bsky.app/profile/matthieu.bsky.team/post/3lzslgavvds2k
+  it('does not allow PDS methods through the entryway', async () => {
+    expect(async () => {
+      await entrywayAgent.com.atproto.repo.describeRepo(
+        {
+          repo: alice,
+        },
+        {
+          headers: SeedClient.getHeaders(accessToken),
+        },
+      )
+    }).rejects.toThrow('Method Not Implemented')
   })
 
   it('does not allow bringing own op to account creation.', async () => {

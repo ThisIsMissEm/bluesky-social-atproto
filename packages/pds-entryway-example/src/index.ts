@@ -14,7 +14,6 @@ import { PDS, ServerConfig, ServerSecrets } from '@atproto/pds'
 import type * as pds from '@atproto/pds'
 import apiRoutes from './api'
 import { createServer } from './lexicon'
-import { proxyHandler } from './pipethrough'
 
 export { envToCfg, envToSecrets } from '@atproto/pds'
 
@@ -47,7 +46,6 @@ export class Entryway {
         textLimit: 100 * 1024, // 100kb
         blobLimit: cfg.service.blobUploadLimit,
       },
-      catchall: proxyHandler(pds.ctx),
     })
 
     apiRoutes(server, pds.ctx, pdsUrls)
