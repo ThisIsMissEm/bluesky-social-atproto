@@ -224,6 +224,7 @@ export async function parseProxyInfo(
   // /!\ Hot path
 
   const proxyToHeader = req.header('atproto-proxy')
+  console.log({ proxyToHeader })
   if (proxyToHeader) return parseProxyHeader(ctx, proxyToHeader)
 
   const { serviceInfo } = defaultService(ctx, lxm)

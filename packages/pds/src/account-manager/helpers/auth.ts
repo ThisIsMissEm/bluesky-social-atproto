@@ -45,6 +45,9 @@ export const createAccessToken = (opts: {
     scope = AuthScope.Access,
     expiresIn = '120mins',
   } = opts
+
+  console.log({ jwtKey, type: jwtKey.type, serviceDid })
+
   const signer = new jose.SignJWT({ scope })
     .setProtectedHeader({
       typ: 'at+jwt', // https://www.rfc-editor.org/rfc/rfc9068.html

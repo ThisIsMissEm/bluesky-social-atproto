@@ -53,6 +53,7 @@ export const createServiceJwt = async (
 
 export const createServiceAuthHeaders = async (params: ServiceJwtParams) => {
   const jwt = await createServiceJwt(params)
+  console.log({ jwt, params })
   return {
     headers: { authorization: `Bearer ${jwt}` },
   }

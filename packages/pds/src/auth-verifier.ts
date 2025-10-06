@@ -1,6 +1,7 @@
 import { KeyObject } from 'node:crypto'
 import { IncomingMessage, ServerResponse } from 'node:http'
 import * as jose from 'jose'
+import * as ui8 from 'uint8arrays'
 import { getVerificationMaterial } from '@atproto/common'
 import { IdResolver, getDidKeyFromMultibase } from '@atproto/identity'
 import {
@@ -101,6 +102,11 @@ export class AuthVerifier {
   ) {
     this._publicUrl = opts.publicUrl
     this._jwtKey = opts.jwtKey
+    console.log({
+      jwtKey: opts.jwtKey,
+      dids: opts.dids,
+      publicUrl: opts.publicUrl,
+    })
     this._adminPass = opts.adminPass
     this.dids = opts.dids
   }
@@ -137,6 +143,10 @@ export class AuthVerifier {
     return { credentials: { type: 'admin_token' } }
   }
 
+  public createAdminAuthHeader = () => {
+    return { authorization: basicAuthHeader('admin', this._adminPass) }
+  }
+
   public modService: MethodAuthVerifier<ModServiceOutput> = async (ctx) => {
     setAuthHeaders(ctx.res)
     if (!this.dids.modService) {
@@ -169,7 +179,7 @@ export class AuthVerifier {
     const { scopes, ...statusOptions } = options
 
     const verifyJwtOptions: VerifyBearerJwtOptions<S> = {
-      audience: this.dids.pds,
+      audience: this.dids.entryway ? this.dids.entryway : this.dids.pds,
       typ: 'at+jwt',
       scopes:
         // @NOTE We can reject taken down credentials based on the scope if
@@ -246,9 +256,18 @@ export class AuthVerifier {
 
     return async (ctx) => {
       const type = extractAuthType(ctx.req)
+      console.log('auth-verifier auth type:', type, {
+        url: ctx.req.url,
+        headers: ctx.req.headers,
+      })
 
       if (type === AuthType.BEARER) {
+        // const token = bearerTokenFromReq(ctx.req)
+        // const header = token ? jose.decodeProtectedHeader(token) : undefined
+
+        // if (header?.typ === 'at+jwt') {
         return access(ctx)
+        // }
       }
 
       if (type === AuthType.DPOP) {
@@ -293,6 +312,11 @@ export class AuthVerifier {
     ctx,
   ) => {
     setAuthHeaders(ctx.res)
+    console.log('auth-verifier userServiceAuth', {
+      url: ctx.req.url,
+      headers: ctx.req.headers,
+    })
+
     const payload = await this.verifyServiceJwt(ctx.req)
     return {
       credentials: {
@@ -463,9 +487,15 @@ export class AuthVerifier {
       throw new AuthRequiredError(undefined, 'AuthMissing')
     }
 
+    console.log({ token, options, jwtKey: this._jwtKey })
+
     const { payload, protectedHeader } = await jose
       .jwtVerify(token, this._jwtKey, { ...options, typ: undefined })
       .catch((cause) => {
+        console.error(
+          { cause, token, jwtPublicKey: this._jwtKey, url: req.url },
+          'Token could not be verified (pds auth-verifier)',
+        )
         if (cause instanceof jose.errors.JWTExpired) {
           throw new InvalidRequestError('Token has expired', 'ExpiredToken', {
             cause,
@@ -533,6 +563,7 @@ export class AuthVerifier {
       const keyId =
         serviceId === 'atproto_labeler' ? 'atproto_label' : 'atproto'
       const didDoc = await this.idResolver.did.resolve(did, forceRefresh)
+      console.log({ didDoc, iss }, 'auth-verifier getSigningKey')
       if (!didDoc) {
         throw new AuthRequiredError('could not resolve iss did')
       }
@@ -652,6 +683,14 @@ const parseBasicAuth = (
   } catch (err) {
     return null
   }
+}
+
+const basicAuthHeader = (username: string, password: string) => {
+  const encoded = ui8.toString(
+    ui8.fromString(`${username}:${password}`, 'utf8'),
+    'base64pad',
+  )
+  return `Basic ${encoded}`
 }
 
 function setAuthHeaders(res: ServerResponse) {

@@ -3,18 +3,30 @@ import { request } from 'undici'
 import { Secp256k1Keypair } from '@atproto/crypto'
 import { IdResolver } from '@atproto/identity'
 import { TestBsky } from './bsky'
+import { TestEntryway } from './entryway'
 import { TestPds } from './pds'
 import { DidAndKey } from './types'
 
-export const mockNetworkUtilities = (pds: TestPds, bsky?: TestBsky) => {
+export const mockNetworkUtilities = (
+  pds: TestPds,
+  bsky?: TestBsky,
+  entryway?: TestEntryway,
+) => {
   mockResolvers(pds.ctx.idResolver, pds)
   if (bsky) {
     mockResolvers(bsky.ctx.idResolver, pds)
     mockResolvers(bsky.dataplane.idResolver, pds)
   }
+
+  if (entryway) {
+    mockResolvers(entryway.server.ctx.idResolver, pds)
+  }
 }
 
-export const mockResolvers = (idResolver: IdResolver, pds: TestPds) => {
+export const mockResolvers = (
+  idResolver: IdResolver,
+  pds: TestPds | TestEntryway,
+) => {
   // Map pds public url to its local url when resolving from plc
   const origResolveDid = idResolver.did.resolveNoCache
   idResolver.did.resolveNoCache = async (did: string) => {

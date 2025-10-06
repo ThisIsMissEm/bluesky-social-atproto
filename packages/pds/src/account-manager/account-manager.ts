@@ -166,8 +166,8 @@ export class AccountManager {
     handle: string
     email?: string
     password?: string
-    repoCid: CID
-    repoRev: string
+    repoCid?: CID
+    repoRev?: string
     inviteCode?: string
     deactivated?: boolean
     refreshJwt?: string
@@ -201,7 +201,9 @@ export class AccountManager {
             auth.decodeRefreshToken(refreshJwt),
             null,
           ),
-        repo.updateRoot(dbTxn, did, repoCid, repoRev),
+        repoCid && repoRev
+          ? repo.updateRoot(dbTxn, did, repoCid, repoRev)
+          : Promise.resolve(),
       ])
     })
   }
@@ -211,8 +213,8 @@ export class AccountManager {
     handle: string
     email?: string
     password?: string
-    repoCid: CID
-    repoRev: string
+    repoCid?: CID
+    repoRev?: string
     inviteCode?: string
     deactivated?: boolean
   }) {

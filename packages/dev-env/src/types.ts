@@ -3,6 +3,7 @@ import * as bsync from '@atproto/bsync'
 import { ExportableKeypair, Keypair } from '@atproto/crypto'
 import * as ozone from '@atproto/ozone'
 import * as pds from '@atproto/pds'
+import * as entryway from '@atproto/pds-entryway-example'
 
 export type IntrospectConfig = {
   port?: number
@@ -16,6 +17,12 @@ export type PlcConfig = {
 export type PdsConfig = Partial<pds.ServerEnvironment> & {
   didPlcUrl: string
   migration?: string
+}
+
+export type EntrywayConfig = Partial<entryway.ServerEnvironment> & {
+  didPlcUrl: string
+  migration?: string
+  pdsUrls?: string[]
 }
 
 export type BskyConfig = Partial<bsky.ServerConfig> & {
@@ -47,6 +54,7 @@ export type TestServerParams = {
   dbPostgresUrl: string
   dbPostgresSchema: string
   pds: Partial<PdsConfig>
+  entryway: Partial<EntrywayConfig>
   plc: Partial<PlcConfig>
   bsky: Partial<BskyConfig>
   ozone: Partial<OzoneConfig>
