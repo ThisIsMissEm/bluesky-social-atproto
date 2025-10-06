@@ -237,9 +237,6 @@ export type ServerEnvironment = {
   entrywayJwtVerifyKeyK256PublicKeyHex?: string
   entrywayPlcRotationKey?: string
 
-  // private key for entryway:
-  jwtKeyK256PrivateKeyHex?: string
-
   // invites
   inviteRequired?: boolean
   inviteInterval?: number
