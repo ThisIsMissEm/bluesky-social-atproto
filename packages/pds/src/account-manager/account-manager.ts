@@ -213,8 +213,8 @@ export class AccountManager {
     handle: string
     email?: string
     password?: string
-    repoCid: CID
-    repoRev: string
+    repoCid?: CID
+    repoRev?: string
     inviteCode?: string
     deactivated?: boolean
   }) {

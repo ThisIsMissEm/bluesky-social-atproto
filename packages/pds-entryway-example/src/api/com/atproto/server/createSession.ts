@@ -21,7 +21,7 @@ export default function (server: Server, ctx: AppContext) {
         calcKey: ({ input, req }) => `${input.body.identifier}-${req.ip}`,
       },
     ],
-    handler: async ({ input, req }) => {
+    handler: async ({ input }) => {
       console.log('entryway: com.atproto.server.createSession', input)
 
       if (input.body.password.length > OLD_PASSWORD_MAX_LENGTH) {

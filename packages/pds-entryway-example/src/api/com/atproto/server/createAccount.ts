@@ -75,7 +75,7 @@ export default function (server: Server, ctx: AppContext, pdses: string[]) {
         plcOp: plcOp,
       })
 
-      await ctx.accountManager.createAccount({
+      const tokens = await ctx.accountManager.createAccountAndSession({
         did,
         handle,
         email,
@@ -87,13 +87,6 @@ export default function (server: Server, ctx: AppContext, pdses: string[]) {
       if (!result.success) {
         throw new InternalServerError('Failed to create account')
       }
-
-      const tokens = await auth.createTokens({
-        did,
-        jwtKey: ctx.accountManager.jwtKey,
-        serviceDid: ctx.accountManager.serviceDid,
-        scope: AuthScope.Access,
-      })
 
       console.log({ tokens, did })
 
