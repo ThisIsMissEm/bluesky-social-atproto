@@ -2,8 +2,10 @@ import { IncomingHttpHeaders, ServerResponse } from 'node:http'
 import { PassThrough, Readable, finished } from 'node:stream'
 import { Request } from 'express'
 import { Dispatcher } from 'undici'
+import { Agent } from '@atproto/api'
 import {
   decodeStream,
+  getPdsEndpoint,
   getServiceEndpoint,
   omit,
   streamToNodeBuffer,
@@ -21,10 +23,7 @@ import {
   parseReqNsid,
 } from '@atproto/xrpc-server'
 import { buildProxiedContentEncoding } from '@atproto-labs/xrpc-utils'
-import { isAccessPrivileged } from './auth-scope'
-import { AppContext } from './context'
-import { ids } from './lexicon/lexicons'
-import { httpLogger } from './logger'
+import { AppContext } from '.'
 
 export const proxyHandler = (ctx: AppContext): CatchallHandler => {
   const performAuth = ctx.authVerifier.authorization<RpcPermissionMatch>({
@@ -52,23 +51,64 @@ export const proxyHandler = (ctx: AppContext): CatchallHandler => {
       }
 
       const lxm = parseReqNsid(req)
-      if (PROTECTED_METHODS.has(lxm)) {
-        throw new InvalidRequestError('Bad token method', 'InvalidToken')
-      }
 
       const { url: origin, did: aud } = await parseProxyInfo(ctx, req, lxm)
+
+      console.log({ origin, aud, lxm, headers: req.headers })
 
       const authResult = await performAuth({ req, res, params: { lxm, aud } })
 
       const { credentials } = excludeErrorResult(authResult)
 
-      if (
-        credentials.type === 'access' &&
-        !isAccessPrivileged(credentials.scope) &&
-        PRIVILEGED_METHODS.has(lxm)
-      ) {
-        throw new InvalidRequestError('Bad token method', 'InvalidToken')
-      }
+      // if (
+      //   credentials.type === 'access' &&
+      //   !isAccessPrivileged(credentials.scope) &&
+      //   PRIVILEGED_METHODS.has(lxm)
+      // ) {
+      //   throw new InvalidRequestError('Bad token method', 'InvalidToken')
+      // }
+
+      // The following didn't work because com.atproto.server.getServiceAuth is a protected method,
+      // so I can't call it from here:
+      //
+      // const didDoc = await ctx.idResolver.did.resolve(credentials.did, false)
+      // if (didDoc === null) {
+      //   throw new InternalServerError(
+      //     `Failed to retrieve did document: ${credentials.did}`,
+      //   )
+      // }
+
+      // const pdsEndpoint = getPdsEndpoint(didDoc)
+      // if (pdsEndpoint === undefined) {
+      //   throw new InternalServerError(
+      //     `Failed to retrieve pds endpoint from did document: ${credentials.did}`,
+      //   )
+      // }
+      // const pdsAgent = new Agent({
+      //   service: pdsEndpoint,
+      // })
+      // const token = await pdsAgent.com.atproto.server.getServiceAuth(
+      //   {
+      //     aud,
+      //     lxm,
+      //   },
+      //   {
+      //     headers: {
+      //       Authorization: req.headers.authorization,
+      //     },
+      //   },
+      // )
+
+      // if (!token.success) {
+      //   throw new InternalServerError('Failed to get service auth token')
+      // }
+
+      // const serviceToken = token.data.token
+
+      // console.log(
+      //   { serviceToken, did: credentials.did, aud, lxm },
+      //   'pipethrough',
+      // )
 
       const headers: IncomingHttpHeaders = {
         'accept-encoding': req.headers['accept-encoding'] || 'identity',
@@ -80,7 +120,8 @@ export const proxyHandler = (ctx: AppContext): CatchallHandler => {
         'content-encoding': body && req.headers['content-encoding'],
         'content-length': body && req.headers['content-length'],
 
-        authorization: `Bearer ${await ctx.serviceAuthJwt(credentials.did, aud, lxm)}`,
+        // authorization: `Bearer ${serviceToken}`,
+        authorization: req.headers.authorization,
       }
 
       const dispatchOptions: Dispatcher.RequestOptions = {
@@ -158,6 +199,12 @@ export async function pipethrough(
 
   const { url: origin, did: aud } = await parseProxyInfo(ctx, req, lxm)
 
+  const didDoc = await ctx.idResolver.did.resolve(aud)
+  console.log({ didDoc })
+  // const url = getServiceEndpoint(didDoc!, { id: serviceId })
+  // const pdsAgent =
+  // const authorization = server.com.atproto.server.getServiceAuth
+
   const dispatchOptions: Dispatcher.RequestOptions = {
     origin,
     method: req.method,
@@ -224,7 +271,6 @@ export async function parseProxyInfo(
   // /!\ Hot path
 
   const proxyToHeader = req.header('atproto-proxy')
-  console.log({ proxyToHeader })
   if (proxyToHeader) return parseProxyHeader(ctx, proxyToHeader)
 
   const { serviceInfo } = defaultService(ctx, lxm)
@@ -378,7 +424,7 @@ function handleUpstreamRequestError(
   err: unknown,
   message = 'Upstream service unreachable',
 ): never {
-  httpLogger.error({ err }, message)
+  console.error({ err }, message)
   throw new XRPCServerError(ResponseType.UpstreamFailure, message, undefined, {
     cause: err,
   })
@@ -510,99 +556,16 @@ function* responseHeaders(
 // Utils
 // -------------------
 
-export const CHAT_BSKY_METHODS = new Set<string>([
-  ids.ChatBskyActorDeleteAccount,
-  ids.ChatBskyActorExportAccountData,
-  ids.ChatBskyConvoDeleteMessageForSelf,
-  ids.ChatBskyConvoGetConvo,
-  ids.ChatBskyConvoGetConvoForMembers,
-  ids.ChatBskyConvoGetLog,
-  ids.ChatBskyConvoGetMessages,
-  ids.ChatBskyConvoLeaveConvo,
-  ids.ChatBskyConvoListConvos,
-  ids.ChatBskyConvoMuteConvo,
-  ids.ChatBskyConvoSendMessage,
-  ids.ChatBskyConvoSendMessageBatch,
-  ids.ChatBskyConvoUnmuteConvo,
-  ids.ChatBskyConvoUpdateRead,
-])
-
-export const PRIVILEGED_METHODS = new Set<string>([
-  ...CHAT_BSKY_METHODS,
-  ids.ComAtprotoServerCreateAccount,
-])
-
-// These endpoints are related to account management and must be used directly,
-// not proxied or service-authed. Service auth may be utilized between PDS and
-// entryway for these methods.
-export const PROTECTED_METHODS = new Set<string>([
-  ids.ComAtprotoAdminSendEmail,
-  ids.ComAtprotoIdentityRequestPlcOperationSignature,
-  ids.ComAtprotoIdentitySignPlcOperation,
-  ids.ComAtprotoIdentityUpdateHandle,
-  ids.ComAtprotoServerActivateAccount,
-  ids.ComAtprotoServerConfirmEmail,
-  ids.ComAtprotoServerCreateAppPassword,
-  ids.ComAtprotoServerDeactivateAccount,
-  ids.ComAtprotoServerGetAccountInviteCodes,
-  ids.ComAtprotoServerGetSession,
-  ids.ComAtprotoServerListAppPasswords,
-  ids.ComAtprotoServerRequestAccountDelete,
-  ids.ComAtprotoServerRequestEmailConfirmation,
-  ids.ComAtprotoServerRequestEmailUpdate,
-  ids.ComAtprotoServerRevokeAppPassword,
-  ids.ComAtprotoServerUpdateEmail,
-])
-
 const defaultService = (
   ctx: AppContext,
-  nsid: string,
+  _nsid: string,
 ): {
   serviceId: string
   serviceInfo: { url: string; did: string } | null
 } => {
-  switch (nsid) {
-    case ids.ToolsOzoneTeamAddMember:
-    case ids.ToolsOzoneTeamDeleteMember:
-    case ids.ToolsOzoneTeamUpdateMember:
-    case ids.ToolsOzoneTeamListMembers:
-    case ids.ToolsOzoneCommunicationCreateTemplate:
-    case ids.ToolsOzoneCommunicationDeleteTemplate:
-    case ids.ToolsOzoneCommunicationUpdateTemplate:
-    case ids.ToolsOzoneCommunicationListTemplates:
-    case ids.ToolsOzoneModerationEmitEvent:
-    case ids.ToolsOzoneModerationGetEvent:
-    case ids.ToolsOzoneModerationGetRecord:
-    case ids.ToolsOzoneModerationGetRepo:
-    case ids.ToolsOzoneModerationQueryEvents:
-    case ids.ToolsOzoneModerationQueryStatuses:
-    case ids.ToolsOzoneModerationSearchRepos:
-    case ids.ToolsOzoneModerationGetAccountTimeline:
-    case ids.ToolsOzoneVerificationListVerifications:
-    case ids.ToolsOzoneVerificationGrantVerifications:
-    case ids.ToolsOzoneVerificationRevokeVerifications:
-    case ids.ToolsOzoneSafelinkAddRule:
-    case ids.ToolsOzoneSafelinkUpdateRule:
-    case ids.ToolsOzoneSafelinkRemoveRule:
-    case ids.ToolsOzoneSafelinkQueryEvents:
-    case ids.ToolsOzoneSafelinkQueryRules:
-    case ids.ToolsOzoneModerationListScheduledActions:
-    case ids.ToolsOzoneModerationCancelScheduledActions:
-    case ids.ToolsOzoneModerationScheduleAction:
-      return {
-        serviceId: 'atproto_labeler',
-        serviceInfo: ctx.cfg.modService,
-      }
-    case ids.ComAtprotoModerationCreateReport:
-      return {
-        serviceId: 'atproto_labeler',
-        serviceInfo: ctx.cfg.reportService,
-      }
-    default:
-      return {
-        serviceId: 'bsky_appview',
-        serviceInfo: ctx.cfg.bskyAppView,
-      }
+  return {
+    serviceId: 'bsky_appview',
+    serviceInfo: ctx.cfg.bskyAppView,
   }
 }
 
@@ -611,5 +574,5 @@ const safeString = (str: unknown): string | undefined => {
 }
 
 function logResponseError(this: ServerResponse, err: unknown): void {
-  httpLogger.warn({ err }, 'error forwarding upstream response')
+  console.error({ err }, 'error forwarding upstream response')
 }

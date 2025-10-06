@@ -1,7 +1,7 @@
 import './env'
 import { generateMockSetup } from './mock'
 import { TestNetwork } from './network'
-import { mockMailer } from './util'
+// import { mockMailer } from './util'
 
 const run = async () => {
   console.log(`
@@ -19,6 +19,8 @@ const run = async () => {
       port: 2583,
       hostname: 'localhost',
       enableDidDocWithSession: true,
+      emailSmtpUrl: 'smtp://mailpit:mailpit@0.0.0.0:2025',
+      emailFromAddress: 'noreply@pds.example',
     },
     bsky: {
       dbPostgresSchema: 'bsky',
@@ -34,7 +36,7 @@ const run = async () => {
     },
     introspect: { port: 2581 },
   })
-  mockMailer(network.pds)
+  // mockMailer(network.pds)
   await generateMockSetup(network)
 
   if (network.introspect) {

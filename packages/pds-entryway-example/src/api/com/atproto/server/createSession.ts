@@ -1,12 +1,11 @@
 import { DAY, MINUTE } from '@atproto/common'
+import { AppContext } from '@atproto/pds'
 import { INVALID_HANDLE } from '@atproto/syntax'
 import { AuthRequiredError } from '@atproto/xrpc-server'
-import { formatAccountStatus } from '../../../../account-manager/account-manager'
-import { OLD_PASSWORD_MAX_LENGTH } from '../../../../account-manager/helpers/scrypt'
-import { AppContext } from '../../../../context'
 import { Server } from '../../../../lexicon'
-import { resultPassthru } from '../../../proxy'
-import { didDocForSession } from './util'
+import { didDocForSession, formatAccountStatus } from './util'
+
+export const OLD_PASSWORD_MAX_LENGTH = 512
 
 export default function (server: Server, ctx: AppContext) {
   server.com.atproto.server.createSession({
@@ -23,15 +22,7 @@ export default function (server: Server, ctx: AppContext) {
       },
     ],
     handler: async ({ input, req }) => {
-      console.log('pds:com.atproto.server.createSession', input)
-      if (ctx.entrywayAgent) {
-        return resultPassthru(
-          await ctx.entrywayAgent.com.atproto.server.createSession(
-            input.body,
-            ctx.entrywayPassthruHeaders(req),
-          ),
-        )
-      }
+      console.log('entryway: com.atproto.server.createSession', input)
 
       if (input.body.password.length > OLD_PASSWORD_MAX_LENGTH) {
         throw new AuthRequiredError(

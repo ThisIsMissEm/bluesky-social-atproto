@@ -99,6 +99,7 @@ export class XrpcClient {
         resBodyBytes,
       )
 
+      console.log({ reqUrl, reqMethod, reqBody: data, resBody, resStatus })
       const resCode = httpResponseCodeToEnum(resStatus)
       if (resCode !== ResponseType.Success) {
         const { error = undefined, message = undefined } =

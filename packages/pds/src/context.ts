@@ -213,7 +213,7 @@ export class AppContext {
     const reportingAgent = cfg.reportService
       ? new AtpAgent({ service: cfg.reportService.url })
       : undefined
-    const entrywayAgent = cfg.entryway
+    const entrywayAgent = cfg.entryway?.url
       ? new AtpAgent({ service: cfg.entryway.url })
       : undefined
     let entrywayAdminAgent: AtpAgent | undefined
@@ -520,6 +520,7 @@ export class AppContext {
 
   async serviceAuthJwt(did: string, aud: string, lxm: string) {
     const keypair = await this.actorStore.keypair(did)
+    console.log({ did, aud, lxm, keypair })
     return createServiceJwt({
       iss: did,
       aud,

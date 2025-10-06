@@ -213,6 +213,7 @@ export class JoseKey<J extends Jwk = Jwk> extends Key<J> {
     alg?: string,
   ): Promise<JoseKey> {
     const jwk = await exportJWK(keyLike)
+    console.log({ jwk })
     if (alg) {
       if (!jwk.alg) jwk.alg = alg
       else if (jwk.alg !== alg) throw new JwkError('Invalid "alg" in JWK')

@@ -365,6 +365,7 @@ export class Server {
           }
         }
       } catch (err: unknown) {
+        console.log({ err, url: req.url })
         // Express will not call the next middleware (errorMiddleware in this case)
         // if the value passed to next is false-y (e.g. null, undefined, 0).
         // Hence we replace it with an InternalServerError.

@@ -47,6 +47,11 @@ export { type CommitDataWithOps, type PreparedWrite } from './repo'
 export * as repoPrepare from './repo/prepare'
 export { scripts } from './scripts'
 export * as sequencer from './sequencer'
+export { proxyHandler } from './pipethrough'
+export * as auth from './account-manager/helpers/auth'
+export * as handle from './handle'
+export * as authOutput from './auth-output'
+export { AuthScope } from './auth-scope'
 
 // Legacy export for backwards compatibility
 export type SkeletonHandler = MethodHandler<
